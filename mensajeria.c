@@ -33,6 +33,7 @@
 
 using namespace std;
 
+// No
 void manejadorSenhales(int signal) {
 	// Manejador de las senhales.
 	// Aca se debe implementar la accion a realizar cuando se recibe la senhal
@@ -58,11 +59,13 @@ void manejadorSenhales(int signal) {
 	exit(1);
 }
 
+// No
 void resetString(char*& s) {
 	// Resetea un string.
 	s[0] = '\0';
 }
 
+// No
 char* agregarCero(char* cad, int num) {
 	// Chequea si el num es < 10 y me devuelve un string con el '0'
 	// concatenado con num en dicho caso
@@ -80,6 +83,7 @@ char* agregarCero(char* cad, int num) {
 	}
 }
 
+// No
 char* getTiempo() {
 	// Obtiene la fecha y hora local y la almacena en un string
 	// con formato DD/MM/YYYY-hh:mm:ss
@@ -175,10 +179,7 @@ void enviarArchivo(FILE* file, int fd, struct sockaddr_in server) {
 	char buffer[MAX_LARGO_MENSAJE];
 	unsigned int sin_size = sizeof(struct sockaddr_in);
 
-	while (fgets(buffer, MAX_LARGO_MENSAJE, file) != NULL) {
-
-		//	printf("[ENVIANDO] Archivo: %s", buffer);
-
+	while (fread(buffer,sizeof(char), MAX_LARGO_MENSAJE, file) != 0) {
 		if (sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&server, sin_size) == -1) {
 			cout << "\33[46m\33[31m[ERROR]:" << " ERROR: enviando archivo.\33[00m\n";
 			exit(1);
@@ -190,7 +191,6 @@ void enviarArchivo(FILE* file, int fd, struct sockaddr_in server) {
 	//Le digo al servidor que termino el envio del archivo
 	strcpy(buffer, "finArchivo");
 	sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&server, sin_size);
-	// printf("[ENVIANDO] Archivo enviado correctamente: %s\n", buffer);
 	bzero(buffer, MAX_LARGO_MENSAJE);
 }
 
@@ -199,10 +199,8 @@ void recibirArchivo(int fd, struct sockaddr_in server, char mensaje[]) {
 
 	char* filename;
 	char buffer[MAX_LARGO_MENSAJE];
-	// sockaddr_in addr_size;
 	string strPathArchivo;
 	FILE* redes_file;
-	//char pathArchivo[MAX_LARGO_MENSAJE];
 
 	strPathArchivo = getPathArchivoRecibido(mensaje);
 
@@ -220,14 +218,12 @@ void recibirArchivo(int fd, struct sockaddr_in server, char mensaje[]) {
 		}
 
 		if (strcmp(buffer, "finArchivo") == 0) {
-			//	printf("[RECIVIENDO] Fin: %s", buffer);
 			fclose(redes_file);
 			break;
 		}
 
 
-		fprintf(redes_file, "%s", buffer);
-		//printf("[RECIVIENDO] Archivo: %s", buffer);
+		fwrite(buffer, sizeof(char), MAX_LARGO_MENSAJE, redes_file);
 		bzero(buffer, MAX_LARGO_MENSAJE);
 	}
 
@@ -554,8 +550,6 @@ void envioMensajeria(int puerto, char usuario[MAX_NOMBRE]) {
 	close(fd);
 }
 
-//hola mierda
-
 int main(int argc, char* argv[]) {
 	// En argc viene la cantidad de argumentos que se pasan,
 	// si se llama solo al programa, el nombre es el argumento 0
@@ -589,7 +583,6 @@ int main(int argc, char* argv[]) {
 
 
 	// Antes de iniciar el programa de mensajeria debe autenticarse
-	// como especifica la letra
 
 	char usuario[MAX_NOMBRE];
 	char clave[MAX_NOMBRE];
@@ -600,18 +593,6 @@ int main(int argc, char* argv[]) {
 	cin >> clave;
 
 	autenticarUsuario(usuario, clave, argv);
-
-	//FILE* redes_file;
-
-	// Una vez autenticado puede comenzar a recibir y empezar el mensajes y archivos.
-	// Para esto se debe bifircar el programa.
-	// Es indistinto si el padre transmite y el hijo recibe, o viceversa, lo que si
-	// al ser distintos porcesos, van a tener distinto pid.
-	// Familiarizarse con los comandos de UNIX ps, ps -as, kill, etc.
-
-	//char buffer[MAX_LARGO_MENSAJE];
-
-	//int fd;
 
 	int pid = fork();
 
