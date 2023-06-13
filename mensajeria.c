@@ -1,8 +1,8 @@
 // Redes de Computadoras - Curso 1er Semestre 2023
 // Tecnologo en Informatica FIng - CETP
 //
-// Entrega 2  - Programacion con Sockets
-// Sistema basico de Mensajeria 
+// Entrega 1  - Programacion con Sockets
+// Sistema basico de Mensajeria
 
 // Integrantes:
 //	Federico Maciel - 51913844
@@ -19,89 +19,102 @@
 #include <iostream>
 #include <fstream>
 #include <string.h>
-#include <arpa/inet.h> // para inet_Addr, etc
-#include <netdb.h> // estrucrutas
+#include <arpa/inet.h>
+#include <netdb.h>
 #include <stdlib.h>
 #include <dirent.h>
-#include <sys/stat.h> 
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/signal.h>
-#include <ctype.h> 
+#include <ctype.h>
+#include <errno.h>
+#include <netinet/in.h>
 
 #define MAX_LARGO_MENSAJE 255
 #define MAX_NOMBRE 25
 
 using namespace std;
 
-// No
-void manejadorSenhales(int signal) {
-	// Manejador de las senhales.
-	// Aca se debe implementar la accion a realizar cuando se recibe la senhal
-	// Deberia haber un manejador de senhales para cada hijo si hacen cosas distintas
-	if (signal == SIGINT) {
-		cout << "\33[46m\33[31m[" << getpid() << "]" << " SIGINT CTRL+C recibido\33[00m\n";
+void manejadorSenhales(int signal)
+{
+
+	if (signal == SIGINT)
+	{
+		cout << "\33[46m\33[31m[" << getpid() << "]"
+			 << " SIGINT CTRL+C recibido\33[00m\n";
 	}
-	if (signal == SIGTERM) {
-		cout << "\33[46m\33[31m[" << getpid() << "]" << " SIGTERM Terminacion de programa\33[00m\n";
+	if (signal == SIGTERM)
+	{
+		cout << "\33[46m\33[31m[" << getpid() << "]"
+			 << " SIGTERM Terminacion de programa\33[00m\n";
 	}
-	if (signal == SIGSEGV) {
-		cout << "\33[46m\33[31m[" << getpid() << "]" << " SIGSEGV violacion de segmento\33[00m\n";
+	if (signal == SIGSEGV)
+	{
+		cout << "\33[46m\33[31m[" << getpid() << "]"
+			 << " SIGSEGV violacion de segmento\33[00m\n";
 	}
-	if (signal == SIGCHLD) {
-		cout << "\33[46m\33[31m[" << "]" << " SIGCHLD \33[00m\n";
+	if (signal == SIGCHLD)
+	{
+		cout << "\33[46m\33[31m["
+			 << "]"
+			 << " SIGCHLD \33[00m\n";
 	}
-	if (signal == SIGPIPE) {
-		cout << "\33[46m\33[31m[" << getpid() << "]" << " SIGPIPE \33[00m\n";
+	if (signal == SIGPIPE)
+	{
+		cout << "\33[46m\33[31m[" << getpid() << "]"
+			 << " SIGPIPE \33[00m\n";
 	}
-	if (signal == SIGKILL) {
-		cout << "\33[46m\33[31m[" << getpid() << "]" << " SIGKILL \33[00m\n";
+	if (signal == SIGKILL)
+	{
+		cout << "\33[46m\33[31m[" << getpid() << "]"
+			 << " SIGKILL \33[00m\n";
 	}
 	exit(1);
 }
 
-// No
-void resetString(char*& s) {
-	// Resetea un string.
+void resetString(char *&s)
+{
+
 	s[0] = '\0';
 }
 
-// No
-char* agregarCero(char* cad, int num) {
-	// Chequea si el num es < 10 y me devuelve un string con el '0'
-	// concatenado con num en dicho caso
-	char* aux = new char[25];
+char *agregarCero(char *cad, int num)
+{
+
+	char *aux = new char[25];
 	resetString(aux);
 	strcat(aux, "0");
 	sprintf(cad, "%d", num);
-	if (num < 10) {
+	if (num < 10)
+	{
 		strcat(aux, cad);
 		return aux;
 	}
-	else {
+	else
+	{
 		delete[] aux;
 		return cad;
 	}
 }
 
-// No
-char* getTiempo() {
-	// Obtiene la fecha y hora local y la almacena en un string
-	// con formato DD/MM/YYYY-hh:mm:ss
+char *getTiempo()
+{
+
 	time_t rawtime;
-	struct tm* timeinfo;
+	struct tm *timeinfo;
 	time(&rawtime);
 	timeinfo = localtime(&rawtime);
 	int hh = timeinfo->tm_hour;
 	int mm = timeinfo->tm_min;
 	int ss = timeinfo->tm_sec;
 	int DD = timeinfo->tm_mday;
-	int MM = (timeinfo->tm_mon) + 1; //xq enero = 0
-	int YYYY = (timeinfo->tm_year) + 1900; //xq el año es desde 1900
-	char* s = new char[19];
+	int MM = (timeinfo->tm_mon) + 1;	   // xq enero = 0
+	int YYYY = (timeinfo->tm_year) + 1900; // xq el año es desde 1900
+	char *s = new char[19];
 	resetString(s);
-	char* cad = new char[25];
+	char *cad = new char[25];
 	resetString(cad);
-	//chequeo si alguna es menor q 10 para concatenarle un '0'
+	// chequeo si alguna es menor q 10 para concatenarle un '0'
 	strcat(s, "[");
 	cad = agregarCero(cad, YYYY);
 	strcat(s, cad);
@@ -124,140 +137,274 @@ char* getTiempo() {
 	return s;
 }
 
+void readPasswords(char password[])
+{
+	/*
+	Lee contraseñas de un archivo de texto y las almacena en un arreglo.
 
-void getPathArchivo(string* strPathArchivo, char mensaje[]) {
+	Argumentos:
+		password (char[]): El arreglo donde se almacenarán las contraseñas leídas.
 
-	int posicion = 0;
-	bool copiarPath = false;
+	*/
 
-	while (posicion < MAX_LARGO_MENSAJE - 2 && mensaje[posicion] != '\0') {
+	int numPasswords = 0;
+	int i = 0;
 
-		if (mensaje[posicion] == '&') {
-			copiarPath = true;
-			posicion += 6;
+	ifstream file("passwords.txt");
+
+	if (file.is_open())
+	{
+		while (!file.eof())
+		{
+			file >> password[i];
+			i++;
+			numPasswords++;
 		}
-
-		if (copiarPath) {
-			if (mensaje[posicion] != ' ') {
-				*strPathArchivo += mensaje[posicion];
-			}
-
-		}
-
-		posicion++;
+		file.close();
 	}
-
 }
 
-string getPathArchivoRecibido(char mensaje[]) {
+void extractFilePath(string *filePath, char message[])
+{
+	/*
+	Extrae la ruta de archivo de un mensaje y la almacena en un string.
 
-	int posicion = 0;
-	bool copiarPath = false;
-	string strPathArchivo;
+	Argumentos:
+		filePath (string*): Puntero al string donde se almacenará la ruta de archivo extraída.
+		message (char[]): El mensaje del cual se extraerá la ruta de archivo.
 
-	while (posicion < MAX_LARGO_MENSAJE - 2 and mensaje[posicion] != '\0') {
+	*/
 
-		if (mensaje[posicion] == '&') {
-			copiarPath = true;
-			posicion += 6;
+	int position = 0;
+	bool copyPath = false;
+
+	while (position < MAX_LARGO_MENSAJE - 2 && message[position] != '\0')
+	{
+		if (message[position] == '&')
+		{
+			copyPath = true;
+			position += 6;
 		}
 
-		if (copiarPath) {
-			if (mensaje[posicion] != ' ') {
-				strPathArchivo += mensaje[posicion];
+		if (copyPath)
+		{
+			if (message[position] != ' ')
+			{
+				*filePath += message[position];
 			}
-
 		}
 
-		posicion++;
+		position++;
 	}
-
-	return strPathArchivo;
 }
 
-void enviarArchivo(FILE* file, int fd, struct sockaddr_in server) {
+string getPathFromMessage(char message[])
+{
+	/*
+	Obtiene la ruta de archivo de un mensaje y la devuelve como un string.
+
+	Argumentos:
+		message (char[]): El mensaje del cual se extraerá la ruta de archivo.
+	*/
+
+	int position = 0;
+	bool copyPath = false;
+	string pathArchivo;
+
+	while (position < MAX_LARGO_MENSAJE - 2 && message[position] != '\0')
+	{
+		if (message[position] == '&')
+		{
+			copyPath = true;
+			position += 6;
+		}
+
+		if (copyPath)
+		{
+			if (message[position] != ' ')
+			{
+				pathArchivo += message[position];
+			}
+		}
+
+		position++;
+	}
+
+	return pathArchivo;
+}
+
+bool checkFileInMessage(char message[])
+{
+	/*
+	Verifica si un mensaje contiene un carácter '&' y devuelve true en caso afirmativo, de lo contrario, devuelve false.
+
+	Argumentos:
+		message (char[]): El mensaje a verificar.
+	*/
+
+	int position = 0;
+	char letter = message[0];
+
+	while (letter != '\n' && position < MAX_LARGO_MENSAJE - 2)
+	{
+		letter = message[position];
+
+		if (letter == '&')
+		{
+			return true;
+		}
+		position++;
+	}
+	return false;
+}
+
+void readWrittenMessage(char message[])
+{
+	/*
+	Lee un mensaje escrito por el usuario desde la entrada estándar y lo guarda en un arreglo de caracteres.
+
+	Argumentos:
+		message (char[]): El arreglo de caracteres donde se almacenará el mensaje.
+	*/
+
+	int position = 0;
+	char letter;
+
+	letter = getchar();
+	while (letter != '\n' && position < MAX_LARGO_MENSAJE - 2)
+	{
+		message[position] = letter;
+		position++;
+		letter = getchar();
+	}
+
+	message[position] = '\0';
+}
+
+void setupSignals()
+{
+	/*
+	Configura el manejo de señales para el programa.
+
+	Establece los manejadores de señales para SIGINT, SIGTERM, SIGPIPE, SIGSEGV y SIGKILL.
+	Ignora la señal SIGALRM.
+	*/
+
+	struct sigaction sa;
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = &manejadorSenhales;
+
+	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGTERM, &sa, NULL);
+	sigaction(SIGPIPE, &sa, NULL);
+	sigaction(SIGSEGV, &sa, NULL);
+	sigaction(SIGKILL, &sa, NULL);
+	signal(SIGALRM, SIG_IGN);
+}
+
+void sendFile(FILE *file, int fd, struct sockaddr_in server)
+{
+	/*
+	Envía un archivo línea por línea a través de un socket UDP.
+
+	Lee cada línea del archivo y la envía al servidor especificado mediante el socket UDP.
+	Después de enviar todas las líneas del archivo, envía un mensaje indicando el fin del archivo.
+
+	Argumentos:
+		file: Puntero al archivo que se va a enviar.
+		fd: Descriptor de archivo del socket UDP.
+		server: Estructura que contiene la información del servidor.
+	*/
+
 	char buffer[MAX_LARGO_MENSAJE];
 	unsigned int sin_size = sizeof(struct sockaddr_in);
 
-	while (fread(buffer,sizeof(char), MAX_LARGO_MENSAJE, file) != 0) {
-		if (sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&server, sin_size) == -1) {
-			cout << "\33[46m\33[31m[ERROR]:" << " ERROR: enviando archivo.\33[00m\n";
+	while (fread(buffer, sizeof(char), MAX_LARGO_MENSAJE, file) != 0)
+	{
+		if (sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr *)&server, sin_size) == -1)
+		{
+			cout << "\33[46m\33[31m[ERROR]:"
+				 << " ERROR: enviando archivo.\33[00m\n";
 			exit(1);
 		}
-
 		bzero(buffer, MAX_LARGO_MENSAJE);
 	}
 
-	//Le digo al servidor que termino el envio del archivo
+	// Le digo al servidor que termino el envio del archivo
 	strcpy(buffer, "finArchivo");
-	sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&server, sin_size);
+	sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr *)&server, sin_size);
 	bzero(buffer, MAX_LARGO_MENSAJE);
 }
 
+void receiveFile(int fd, struct sockaddr_in server, char mensaje[])
+{
+	/*
+	Recibe un archivo línea por línea a través de un socket UDP.
 
-void recibirArchivo(int fd, struct sockaddr_in server, char mensaje[]) {
+	Recibe cada línea del archivo del servidor especificado mediante el socket UDP y lo guarda en un archivo local.
+	La función continúa recibiendo y guardando las líneas del archivo hasta que reciba un mensaje indicando el fin del archivo.
 
-	char* filename;
+	Argumentos:
+		fd: Descriptor de archivo del socket UDP.
+		server: Estructura que contiene la información del servidor.
+		mensaje: Mensaje que contiene información adicional.
+	*/
+
+	char *filename;
 	char buffer[MAX_LARGO_MENSAJE];
 	string strPathArchivo;
-	FILE* redes_file;
+	FILE *redesFile;
 
-	strPathArchivo = getPathArchivoRecibido(mensaje);
+	strPathArchivo = getPathFromMessage(mensaje);
 
-	filename = (char*)strPathArchivo.c_str();
-	redes_file = fopen(filename, "w");
+	filename = (char *)strPathArchivo.c_str();
+	redesFile = fopen(filename, "w");
 
-
-	while (true) {
-
+	while (true)
+	{
 		unsigned int sin_size = sizeof(struct sockaddr_in);
 
-		if (recvfrom(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&server, &sin_size) == -1) {
-			cout << "\33[46m\33[31m[ERROR]:" << " ERROR: Imposible hacer recvfrom() para recepcion.\33[00m\n";
+		if (recvfrom(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr *)&server, &sin_size) == -1)
+		{
+			cout << "\33[46m\33[31m[ERROR]:"
+				 << " ERROR: Imposible hacer recvfrom() para recepcion.\33[00m\n";
 			exit(1);
 		}
 
-		if (strcmp(buffer, "finArchivo") == 0) {
-			fclose(redes_file);
+		if (strcmp(buffer, "finArchivo") == 0)
+		{
+			fclose(redesFile);
 			break;
 		}
 
-
-		fwrite(buffer, sizeof(char), MAX_LARGO_MENSAJE, redes_file);
+		fwrite(buffer, sizeof(char), MAX_LARGO_MENSAJE, redesFile);
 		bzero(buffer, MAX_LARGO_MENSAJE);
 	}
-
 }
 
+void authenticateUser(char usuario[MAX_NOMBRE], char clave[MAX_NOMBRE], char *argv[4])
+{
+	/*
+	Autentica al usuario mediante un servidor remoto.
 
-void md5(char contrasena[]) {
+	Genera una cadena de autenticación del usuario y la contraseña proporcionados.
+	Establece una conexión con el servidor remoto utilizando TCP/IP.
+	Envía la cadena de autenticación al servidor y recibe la respuesta.
+	Si la autenticación es exitosa, muestra un mensaje de bienvenida.
 
-	int num_characters = 0;
-	int i = 0;
-
-	ifstream myfile("md5.txt");
-
-	if (myfile.is_open()) {
-
-		while (!myfile.eof()) {
-
-			myfile >> contrasena[i];
-			i++;
-			num_characters++;
-		}
-	}
-}
-
-
-void autenticarUsuario(char usuario[MAX_NOMBRE], char clave[MAX_NOMBRE], char* argv[4]) {
+	Argumentos:
+		usuario: Nombre de usuario.
+		clave: Contraseña del usuario.
+		argv: Argumentos del programa, incluyendo la dirección IP y el puerto del servidor.
+	*/
 
 	char buf[MAX_LARGO_MENSAJE];
-	char usuariocontrasena[MAX_LARGO_MENSAJE];
-	char contrasenaMD5[MAX_NOMBRE];
+	char userPass[MAX_LARGO_MENSAJE];
+	char passMD5[MAX_NOMBRE];
 	char echo[MAX_NOMBRE];
 
 	struct sockaddr_in server;
-	struct hostent* he;
+	struct hostent *he;
 
 	int numbytes;
 	int fd;
@@ -268,142 +415,116 @@ void autenticarUsuario(char usuario[MAX_NOMBRE], char clave[MAX_NOMBRE], char* a
 	strcat(echo, "'");
 	strcat(echo, clave);
 	strcat(echo, "'");
-	strcat(echo, " | md5sum > md5.txt");
+	strcat(echo, " | md5sum > passwords.txt");
 
 	system(echo);
-	md5(contrasenaMD5);
-	/*char* token =*/ strtok(contrasenaMD5, "-");
+	readPasswords(passMD5);
+	strtok(passMD5, "-");
 
-	usuariocontrasena[0] = 0;
-	strcat(usuariocontrasena, usuario);
-	strcat(usuariocontrasena, "-");
-	strcat(usuariocontrasena, contrasenaMD5);
-	strcat(usuariocontrasena, "\r\n");
+	userPass[0] = 0;
+	strcat(userPass, usuario);
+	strcat(userPass, "-");
+	strcat(userPass, passMD5);
+	strcat(userPass, "\r\n");
 
-	if ((he = gethostbyname(argv[2])) == NULL) {
-
-		cout << "\33[46m\33[31m[ERROR]:" << " gethostbyname()\33[00m\n";
+	if ((he = gethostbyname(argv[2])) == NULL)
+	{
+		cout << "\33[46m\33[31m[ERROR]:"
+			 << " gethostbyname()\33[00m\n";
 		exit(-1);
 	}
 
-	fd = socket(AF_INET, SOCK_STREAM, 0); //socket tcp
-	if (fd == -1) {
-
-		cout << "\33[46m\33[31m[ERROR]:" << " socket()\33[00m\n";
+	fd = socket(AF_INET, SOCK_STREAM, 0); // socket TCP
+	if (fd == -1)
+	{
+		cout << "\33[46m\33[31m[ERROR]:"
+			 << " socket()\33[00m\n";
 		exit(-1);
 	}
 
 	server.sin_family = AF_INET;
 	server.sin_port = htons(atoi(argv[3]));
-	server.sin_addr = *((struct in_addr*)he->h_addr);
+	server.sin_addr = *((struct in_addr *)he->h_addr);
 	bzero(&(server.sin_zero), 8);
 
-	error = connect(fd, (struct sockaddr*)&server, sizeof(struct sockaddr));
-
-	if (error == -1) {
-
-		cout << "\33[46m\33[31m[ERROR]:" << " connect()\33[00m\n";
+	error = connect(fd, (struct sockaddr *)&server, sizeof(struct sockaddr));
+	if (error == -1)
+	{
+		cout << "\33[46m\33[31m[ERROR]:"
+			 << " connect()\33[00m\n";
 		exit(-1);
 	}
 
 	numbytes = recv(fd, buf, MAX_LARGO_MENSAJE, 0);
-
-	if (numbytes == -1) {
-
-		cout << "\33[46m\33[31m[ERROR]:" << " recv()\33[00m\n";
+	if (numbytes == -1)
+	{
+		cout << "\33[46m\33[31m[ERROR]:"
+			 << " recv()\33[00m\n";
 		exit(-1);
 	}
-
 	buf[numbytes - 2] = '\0';
 
-	send(fd, usuariocontrasena, strlen(usuariocontrasena), 0);
+	send(fd, userPass, strlen(userPass), 0);
 
 	numbytes = recv(fd, buf, MAX_LARGO_MENSAJE, 0);
-
-	if (numbytes == -1) {
-
+	if (numbytes == -1)
+	{
 		cout << "\33[46m\33[31m[ERROR]: recv()\33[00m\n";
 		exit(-1);
 	}
-
 	buf[numbytes - 2] = '\0';
 
-	if (strcmp(buf, "NO") == 0) {
-
+	if (strcmp(buf, "NO") == 0)
+	{
 		cout << "\33[46m\33[31m[ERROR]: Imposible autenticar, usuario no valido.\33[00m\n";
 		exit(-1);
-
 	}
-	else if (strcmp(buf, "SI") == 0) {
-
+	else if (strcmp(buf, "SI") == 0)
+	{
 		numbytes = recv(fd, buf, MAX_LARGO_MENSAJE, 0);
-
-		if (numbytes == -1) {
-
-			cout << "\33[46m\33[31m[ERROR]:" << " ERROR: Al conectar.\33[00m\n";
+		if (numbytes == -1)
+		{
+			cout << "\33[46m\33[31m[ERROR]:"
+				 << " ERROR: Al conectar.\33[00m\n";
 			exit(-1);
 		}
-
 		buf[numbytes - 2] = '\0';
 		cout << "Bienvenid@ " << buf << endl;
-
 	}
-	else {
-
+	else
+	{
 		cout << "\33[46m\33[31m[ERROR]: Error en protocolo de autenticacion.\33[00m\n";
 		exit(-1);
 	}
 
 	close(fd);
-
 }
 
+void receiveMessages(int puerto)
+{
+	/*
+	Escucha y procesa mensajes entrantes en un puerto especificado.
 
-void leer_mensaje_escrito(char mensaje[]) {
+	Crea un socket UDP para recibir mensajes.
+	Enlaza el socket al puerto especificado.
+	Espera y procesa mensajes entrantes.
+	Si el mensaje es un archivo, lo recibe.
+	Muestra información sobre el mensaje recibido.
 
-	int posicion = 0;
-	char letra;
-
-	letra = getchar();
-	while (letra != '\n' and posicion < MAX_LARGO_MENSAJE - 2) {
-
-		mensaje[posicion] = letra;
-		posicion++;
-		letra = getchar();
-	}
-
-	mensaje[posicion] = '\0';
-}
-
-bool verificarArchivo(char mensaje[]) {
-
-	int posicion = 0;
-	char letra = mensaje[0];
-
-	while (letra != '\n' and posicion < MAX_LARGO_MENSAJE - 2) {
-		letra = mensaje[posicion];
-
-		if (letra == '&') {
-			return true;
-		}
-		posicion++;
-	}
-	return false;
-}
-
-void recepcionMensajeria(int puerto) {
+	Argumentos:
+		puerto: Puerto en el que se va a escuchar.
+	*/
 
 	int fd;
 	int numbytes;
-
 	char buffer[MAX_LARGO_MENSAJE];
-
 	struct sockaddr_in server;
 	struct sockaddr_in client;
 
-	if ((fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-
-		cout << "\33[46m\33[31m[ERROR]:" << " ERROR: Imposible crear socket udp.\33[00m\n";
+	if ((fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+	{
+		cout << "\33[46m\33[31m[ERROR]:"
+			 << " ERROR: Imposible crear socket UDP.\33[00m\n";
 		exit(1);
 	}
 
@@ -412,55 +533,76 @@ void recepcionMensajeria(int puerto) {
 	server.sin_addr.s_addr = INADDR_ANY;
 	bzero(&(server.sin_zero), 8);
 
-	if (bind(fd, (struct sockaddr*)&server, sizeof(struct sockaddr)) == -1) {
-
-		cout << "\33[46m\33[31m[ERROR]:" << " ERROR: Imposible hacer bind() para recepcion.\33[00m\n";
+	if (bind(fd, (struct sockaddr *)&server, sizeof(struct sockaddr)) == -1)
+	{
+		cout << "\33[46m\33[31m[ERROR]:"
+			 << " ERROR: Imposible hacer bind() para recepcion.\33[00m\n";
 		exit(1);
 	}
 
 	unsigned int sin_size = sizeof(struct sockaddr_in);
 
-	while (true) {
-
-		if ((numbytes = recvfrom(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&client, &sin_size)) == -1) {
-
-			cout << "\33[46m\33[31m[ERROR]:" << " ERROR: Imposible hacer recvfrom() para recepcion.\33[00m\n";
+	while (true)
+	{
+		if ((numbytes = recvfrom(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr *)&client, &sin_size)) == -1)
+		{
+			cout << "\33[46m\33[31m[ERROR]:"
+				 << " ERROR: Imposible hacer recvfrom() para recepcion.\33[00m\n";
 			exit(1);
 		}
 
 		buffer[numbytes - 2] = '\0';
 
-		if (verificarArchivo(buffer)) {
+		if (checkFileInMessage(buffer))
+		{
 			printf("%s %s %s\n", getTiempo(), inet_ntoa(client.sin_addr), buffer);
-			recibirArchivo(fd, client, buffer);
+			receiveFile(fd, client, buffer);
 		}
-		else {
+		else
+		{
 			printf("%s %s %s\n", getTiempo(), inet_ntoa(client.sin_addr), buffer);
 		}
-
 	}
+
 	close(fd);
 }
 
-void envioMensajeria(int puerto, char usuario[MAX_NOMBRE]) {
+void sendMessages(int puerto, char usuario[MAX_NOMBRE])
+{
+	/*
+	Envía mensajes desde el cliente al servidor en un puerto especificado.
+
+	Crea un socket UDP para enviar mensajes.
+	Lee el mensaje escrito por el usuario.
+	Verifica si el mensaje es un archivo.
+	Si es un archivo, envía el nombre del archivo y luego el contenido.
+	Si no es un archivo, envía el mensaje como texto.
+	Puede enviar mensajes de forma individual o utilizando broadcast.
+
+	Argumentos:
+		puerto: Puerto en el que se va a enviar el mensaje.
+		usuario: Nombre de usuario que envía el mensaje.
+	*/
 
 	int fd;
 	int broadcast;
 
 	char mensaje[MAX_LARGO_MENSAJE];
 	char buffer[MAX_LARGO_MENSAJE];
-	char pathArchivo[MAX_LARGO_MENSAJE];
-	string strPathArchivo;
-	FILE* redes_file;
+	char filePath[MAX_LARGO_MENSAJE];
+	string strfilePath;
+	FILE *redesFile;
 
-	struct hostent* he;
+	struct hostent *he;
 
-	struct sockaddr_in server /*, client*/;
+	struct sockaddr_in server;
 
-	while (true) {
-
-		if ((fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) { //socket UDP
-			cout << "\33[46m\33[31m[ERROR]:" << " ERROR: Imposible abrir socket udp para envio.\33[00m\n";
+	while (true)
+	{
+		if ((fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+		{ // socket UDP
+			cout << "\33[46m\33[31m[ERROR]:"
+				 << " ERROR: Imposible abrir socket UDP para envio.\33[00m\n";
 			exit(1);
 		}
 
@@ -469,8 +611,8 @@ void envioMensajeria(int puerto, char usuario[MAX_NOMBRE]) {
 		char ip[25];
 		cin >> ip;
 
-		if (strcmp(ip, "*") == 0) {  // broadcast
-
+		if (strcmp(ip, "*") == 0)
+		{ // broadcast
 			broadcast = 1;
 
 			server.sin_family = AF_INET;
@@ -478,32 +620,32 @@ void envioMensajeria(int puerto, char usuario[MAX_NOMBRE]) {
 			server.sin_addr.s_addr = INADDR_BROADCAST;
 			bzero(&(server.sin_zero), 8);
 
-			if (setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) == -1) {
-
-				cout << "\33[46m\33[31m[ERROR]:" << " ERROR: Imposible hacer setsockopt() para envio.\33[00m\n";
+			if (setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) == -1)
+			{
+				cout << "\33[46m\33[31m[ERROR]:"
+					 << " ERROR: Imposible hacer setsockopt() para envio.\33[00m\n";
 				exit(1);
 			}
-
 		}
-		else { //no broadcast
-
-			if ((he = gethostbyname(ip)) == NULL) {
-
-				cout << "\33[46m\33[31m[ERROR]:" << " gethostbyname()\33[00m\n";
+		else
+		{ // no broadcast
+			if ((he = gethostbyname(ip)) == NULL)
+			{
+				cout << "\33[46m\33[31m[ERROR]:"
+					 << " gethostbyname()\33[00m\n";
 				exit(-1);
 			}
 
 			server.sin_family = AF_INET;
 			server.sin_port = htons(puerto);
-			server.sin_addr = *((struct in_addr*)he->h_addr);
+			server.sin_addr = *((struct in_addr *)he->h_addr);
 			bzero(&(server.sin_zero), 8);
-
 		}
-		leer_mensaje_escrito(mensaje);
 
+		readWrittenMessage(mensaje);
 
-		if (verificarArchivo(mensaje) == true) {
-
+		if (checkFileInMessage(mensaje) == true)
+		{
 			buffer[0] = '\0';
 
 			buffer[0] = '\0';
@@ -512,45 +654,49 @@ void envioMensajeria(int puerto, char usuario[MAX_NOMBRE]) {
 			strcat(buffer, mensaje);
 			strcat(buffer, "\0");
 
-			if (sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&server, sin_size) == -1) {
-
-				cout << "\33[46m\33[31m[ERROR]:" << " ERROR: sendto().\33[00m\n";
+			if (sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr *)&server, sin_size) == -1)
+			{
+				cout << "\33[46m\33[31m[ERROR]:"
+					 << " ERROR: sendto().\33[00m\n";
 				exit(1);
 			}
 
+			extractFilePath(&strfilePath, mensaje);
+			strcpy(filePath, strfilePath.c_str());
+			redesFile = fopen(filePath, "rb");
 
-			getPathArchivo(&strPathArchivo, mensaje);
-			strcpy(pathArchivo, strPathArchivo.c_str());
-			redes_file = fopen(pathArchivo, "rb");
-
-			if (redes_file == NULL) {
-				cout << "\33[46m\33[31m[ERROR]:" << " ERROR: Imposible leer el archivo.\33[00m\n";
+			if (redesFile == NULL)
+			{
+				cout << "\33[46m\33[31m[ERROR]:"
+					 << " ERROR: Imposible leer el archivo.\33[00m\n";
 				exit(-1);
 			}
 
-			enviarArchivo(redes_file, fd, server);
-			fclose(redes_file);
-
+			sendFile(redesFile, fd, server);
+			fclose(redesFile);
 		}
-		else {
-
+		else
+		{
 			buffer[0] = '\0';
 			strcpy(buffer, usuario);
 			strcat(buffer, " Dice: ");
 			strcat(buffer, mensaje);
 			strcat(buffer, "\0");
 
-			if (sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&server, sin_size) == -1) {
-
-				cout << "\33[46m\33[31m[ERROR]:" << " ERROR: sendto().\33[00m\n";
+			if (sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr *)&server, sin_size) == -1)
+			{
+				cout << "\33[46m\33[31m[ERROR]:"
+					 << " ERROR: sendto().\33[00m\n";
 				exit(1);
 			}
 		}
 	}
+
 	close(fd);
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[])
+{
 	// En argc viene la cantidad de argumentos que se pasan,
 	// si se llama solo al programa, el nombre es el argumento 0
 	// En nuestro caso:
@@ -559,8 +705,10 @@ int main(int argc, char* argv[]) {
 	//      - argv[2] es el ip del servidor de autenticacion.
 	//      - argv[3] es el puerto del servidor de autenticacion.
 
-	if (argc < 4) {
-		cout << "\33[46m\33[31m[ERROR]:" << " Faltan argumentos: port, ipAuth, portAuth.\33[00m\n";
+	if (argc < 4)
+	{
+		cout << "\33[46m\33[31m[ERROR]:"
+			 << " Faltan argumentos: port, ipAuth, portAuth.\33[00m\n";
 		exit(1);
 	}
 
@@ -581,8 +729,8 @@ int main(int argc, char* argv[]) {
 
 	cout << "\33[34mRedes de Computadoras 2023\33[39m: Sistema de Mensajeria.\nEscuchando en el puerto " << argv[1] << ".\nProceso de pid: " << getpid() << ".\n";
 
-
 	// Antes de iniciar el programa de mensajeria debe autenticarse
+	// como especifica la letra
 
 	char usuario[MAX_NOMBRE];
 	char clave[MAX_NOMBRE];
@@ -592,36 +740,34 @@ int main(int argc, char* argv[]) {
 	cout << "Clave: ";
 	cin >> clave;
 
-	autenticarUsuario(usuario, clave, argv);
+	authenticateUser(usuario, clave, argv);
+
+	// Una vez autenticado puede comenzar a recibir y empezar el mensajes y archivos.
+	// Para esto se debe bifircar el programa.
+	// Es indistinto si el padre transmite y el hijo recibe, o viceversa, lo que si
+	// al ser distintos porcesos, van a tener distinto pid.
+	// Familiarizarse con los comandos de UNIX ps, ps -as, kill, etc.
 
 	int pid = fork();
 
 	int puerto = atoi(argv[1]);
 
-	if (pid < 0) {
-		cout << "\33[46m\33[31m[ERROR]:" << " Imposible Bifurcar.\33[00m\n";
+	if (pid < 0)
+	{
+		cout << "\33[46m\33[31m[ERROR]:"
+			 << " Imposible Bifurcar.\33[00m\n";
 		exit(1);
 	}
 
-	if (pid == 0) {
-		// printf("\33[34mRx\33[39m: Iniciada parte que recepciona mensajes. Pid %d\n", getpid());
-		// while (true) {
-		// 	sleep(1);
-		// 	// Incluir el codigo de la recepcion de mensajeria y archivos.
-		// }
-		recepcionMensajeria(puerto);
+	if (pid == 0)
+	{
+		printf("\33[34mRx\33[39m: Iniciada parte que recepciona mensajes. Pid %d\n", getpid());
+		receiveMessages(puerto);
 	}
 
-
-	if (pid > 0) {
-		// printf("\33[34mTx\33[39m: Iniciada parte que transmite mensajes. Pid %d\n", getpid());
-		// while (true) {
-		// 	sleep(1);
-		// 	// Leer de la entrada estandar e incluir
-		// 	// el codigo de la emision de mensajeria y archivos.
-		// }
-		envioMensajeria(puerto, usuario);
+	if (pid > 0)
+	{
+		printf("\33[34mTx\33[39m: Iniciada parte que transmite mensajes. Pid %d\n", getpid());
+		sendMessages(puerto, usuario);
 	}
-
-
 }
