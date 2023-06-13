@@ -10,6 +10,10 @@ Integrantes:
 
 
 Comentarios:
-	Aqui deben figurar comentarios sobre la implementacion, errores que surjan,
-	lo que sea que consideren relevante sobre la solucion entregada. 
+	- Envia bien el texto plano 
+	- Envia bien los archivos 
+
+	Problemas:
+	1- Luego de enviar un archivo, si queremos enviar otro, agarra el path del anterior + el del nuevo (lo concatena)
+	2- Luego de enviar un archivo, si mandamos texto plano, tampoco lo manda.
 
