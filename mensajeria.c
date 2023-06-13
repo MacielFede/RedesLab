@@ -319,21 +319,20 @@ void sendFile(FILE *file, int fd, struct sockaddr_in server)
 	char buffer[MAX_LARGO_MENSAJE];
 	unsigned int sin_size = sizeof(struct sockaddr_in);
 
-	while (fread(buffer, sizeof(char), MAX_LARGO_MENSAJE, file) != 0)
+	size_t bytesRead;
+
+	while ((bytesRead = fread(buffer, sizeof(char), MAX_LARGO_MENSAJE, file)) > 0)
 	{
-		if (sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr *)&server, sin_size) == -1)
+		if (sendto(fd, buffer, bytesRead, 0, (struct sockaddr *)&server, sin_size) == -1)
 		{
-			cout << "\33[46m\33[31m[ERROR]:"
-				 << " ERROR: enviando archivo.\33[00m\n";
+			printf("[ERROR]: Error enviando archivo.\n");
 			exit(1);
 		}
-		bzero(buffer, MAX_LARGO_MENSAJE);
 	}
 
-	// Le digo al servidor que termino el envio del archivo
-	strcpy(buffer, "finArchivo");
+	// Le digo al servidor que terminó el envío del archivo
+	strcpy(buffer, "fin");
 	sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr *)&server, sin_size);
-	bzero(buffer, MAX_LARGO_MENSAJE);
 }
 
 void receiveFile(int fd, struct sockaddr_in server, char mensaje[])
@@ -364,21 +363,20 @@ void receiveFile(int fd, struct sockaddr_in server, char mensaje[])
 	{
 		unsigned int sin_size = sizeof(struct sockaddr_in);
 
-		if (recvfrom(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr *)&server, &sin_size) == -1)
+		ssize_t bytesRead = recvfrom(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr *)&server, &sin_size);
+		if (bytesRead == -1)
 		{
-			cout << "\33[46m\33[31m[ERROR]:"
-				 << " ERROR: Imposible hacer recvfrom() para recepcion.\33[00m\n";
+			printf("[ERROR]: Imposible hacer recvfrom() para recepción.\n");
 			exit(1);
 		}
 
-		if (strcmp(buffer, "finArchivo") == 0)
+		if (strcmp(buffer, "fin") == 0)
 		{
 			fclose(redesFile);
 			break;
 		}
 
-		fwrite(buffer, sizeof(char), MAX_LARGO_MENSAJE, redesFile);
-		bzero(buffer, MAX_LARGO_MENSAJE);
+		fwrite(buffer, sizeof(char), bytesRead, redesFile);
 	}
 }
 
@@ -647,8 +645,6 @@ void sendMessages(int puerto, char usuario[MAX_NOMBRE])
 		if (checkFileInMessage(mensaje) == true)
 		{
 			buffer[0] = '\0';
-
-			buffer[0] = '\0';
 			strcpy(buffer, usuario);
 			strcat(buffer, " [Envio de archivo] ");
 			strcat(buffer, mensaje);
@@ -663,6 +659,7 @@ void sendMessages(int puerto, char usuario[MAX_NOMBRE])
 
 			extractFilePath(&strfilePath, mensaje);
 			strcpy(filePath, strfilePath.c_str());
+			cout << filePath << endl;
 			redesFile = fopen(filePath, "rb");
 
 			if (redesFile == NULL)
