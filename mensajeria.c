@@ -33,7 +33,16 @@
 #define MAX_LARGO_MENSAJE 255
 #define MAX_NOMBRE 25
 
+int fdUser, fdSend, fdReceive;
+
 using namespace std;
+
+void fExit(int e) {
+	close(fdUser);
+	close(fdSend);
+	close(fdReceive);
+	exit(e);
+}
 
 void manejadorSenhales(int signal)
 {
@@ -69,7 +78,7 @@ void manejadorSenhales(int signal)
 		cout << "\33[46m\33[31m[" << getpid() << "]"
 			<< " SIGKILL \33[00m\n";
 	}
-	exit(1);
+	fExit(1);
 }
 
 void resetString(char*& s)
@@ -164,7 +173,7 @@ void readPasswords(char password[])
 	}
 }
 
-void extractFilePath(string* filePath, char message[])
+void extractFilePath(char filePath[], char message[])
 {
 	/*
 	Extrae la ruta de archivo de un mensaje y la almacena en un string.
@@ -175,7 +184,7 @@ void extractFilePath(string* filePath, char message[])
 
 	*/
 
-	int position = 0;
+	int position = 0, iter = 0;
 	bool copyPath = false;
 
 	while (position < MAX_LARGO_MENSAJE - 2 && message[position] != '\0')
@@ -190,12 +199,14 @@ void extractFilePath(string* filePath, char message[])
 		{
 			if (message[position] != ' ')
 			{
-				*filePath += message[position];
+				filePath[iter] = message[position];
+				iter++;
 			}
 		}
 
 		position++;
 	}
+				filePath[iter] = '\0';
 }
 
 string getPathFromMessage(char message[])
@@ -326,7 +337,7 @@ void sendFile(FILE* file, int fd, struct sockaddr_in server)
 		if (sendto(fd, buffer, bytesRead, 0, (struct sockaddr*)&server, sin_size) == -1)
 		{
 			printf("[ERROR]: Error enviando archivo.\n");
-			exit(1);
+			fExit(1);
 		}
 	}
 
@@ -367,7 +378,7 @@ void receiveFile(int fd, struct sockaddr_in server, char mensaje[])
 		if (bytesRead == -1)
 		{
 			printf("[ERROR]: Imposible hacer recvfrom() para recepción.\n");
-			exit(1);
+			fExit(1);
 		}
 
 		if (strcmp(buffer, "fin") == 0)
@@ -388,7 +399,7 @@ void authenticateUser(char usuario[MAX_NOMBRE], char clave[MAX_NOMBRE], char* ar
 	Genera una cadena de autenticación del usuario y la contraseña proporcionados.
 	Establece una conexión con el servidor remoto utilizando TCP/IP.
 	Envía la cadena de autenticación al servidor y recibe la respuesta.
-	Si la autenticación es exitosa, muestra un mensaje de bienvenida.
+	Si la autenticación es fExitosa, muestra un mensaje de bienvenida.
 	Elimina el archivo password.txt creado.
 
 	Argumentos:
@@ -406,7 +417,6 @@ void authenticateUser(char usuario[MAX_NOMBRE], char clave[MAX_NOMBRE], char* ar
 	struct hostent* he;
 
 	int numbytes;
-	int fd;
 	int error;
 
 	echo[0] = 0;
@@ -423,22 +433,22 @@ void authenticateUser(char usuario[MAX_NOMBRE], char clave[MAX_NOMBRE], char* ar
 	userPass[0] = 0;
 	strcat(userPass, usuario);
 	strcat(userPass, "-");
+	passMD5[32] = '\0';
 	strcat(userPass, passMD5);
 	strcat(userPass, "\r\n");
-
 	if ((he = gethostbyname(argv[2])) == NULL)
 	{
 		cout << "\33[46m\33[31m[ERROR]:"
 			<< " gethostbyname()\33[00m\n";
-		exit(-1);
+		fExit(-1);
 	}
 
-	fd = socket(AF_INET, SOCK_STREAM, 0); // socket TCP
-	if (fd == -1)
+	fdUser = socket(AF_INET, SOCK_STREAM, 0); // socket TCP
+	if (fdUser == -1)
 	{
 		cout << "\33[46m\33[31m[ERROR]:"
 			<< " socket()\33[00m\n";
-		exit(-1);
+		fExit(-1);
 	}
 
 	server.sin_family = AF_INET;
@@ -446,46 +456,46 @@ void authenticateUser(char usuario[MAX_NOMBRE], char clave[MAX_NOMBRE], char* ar
 	server.sin_addr = *((struct in_addr*)he->h_addr);
 	bzero(&(server.sin_zero), 8);
 
-	error = connect(fd, (struct sockaddr*)&server, sizeof(struct sockaddr));
+	error = connect(fdUser, (struct sockaddr*)&server, sizeof(struct sockaddr));
 	if (error == -1)
 	{
 		cout << "\33[46m\33[31m[ERROR]:"
 			<< " connect()\33[00m\n";
-		exit(-1);
+		fExit(-1);
 	}
 
-	numbytes = recv(fd, buf, MAX_LARGO_MENSAJE, 0);
+	numbytes = recv(fdUser, buf, MAX_LARGO_MENSAJE, 0);
 	if (numbytes == -1)
 	{
 		cout << "\33[46m\33[31m[ERROR]:"
 			<< " recv()\33[00m\n";
-		exit(-1);
+		fExit(-1);
 	}
 	buf[numbytes - 2] = '\0';
 
-	send(fd, userPass, strlen(userPass), 0);
+	send(fdUser, userPass, strlen(userPass), 0);
 
-	numbytes = recv(fd, buf, MAX_LARGO_MENSAJE, 0);
+	numbytes = recv(fdUser, buf, MAX_LARGO_MENSAJE, 0);
 	if (numbytes == -1)
 	{
 		cout << "\33[46m\33[31m[ERROR]: recv()\33[00m\n";
-		exit(-1);
+		fExit(-1);
 	}
 	buf[numbytes - 2] = '\0';
 
 	if (strcmp(buf, "NO") == 0)
 	{
 		cout << "\33[46m\33[31m[ERROR]: Imposible autenticar, usuario no valido.\33[00m\n";
-		exit(-1);
+		fExit(-1);
 	}
 	else if (strcmp(buf, "SI") == 0)
 	{
-		numbytes = recv(fd, buf, MAX_LARGO_MENSAJE, 0);
+		numbytes = recv(fdUser, buf, MAX_LARGO_MENSAJE, 0);
 		if (numbytes == -1)
 		{
 			cout << "\33[46m\33[31m[ERROR]:"
 				<< " ERROR: Al conectar.\33[00m\n";
-			exit(-1);
+			fExit(-1);
 		}
 		buf[numbytes - 2] = '\0';
 		cout << "Bienvenid@ " << buf << endl;
@@ -493,13 +503,13 @@ void authenticateUser(char usuario[MAX_NOMBRE], char clave[MAX_NOMBRE], char* ar
 	else
 	{
 		cout << "\33[46m\33[31m[ERROR]: Error en protocolo de autenticacion.\33[00m\n";
-		exit(-1);
+		fExit(-1);
 	}
 
 	strcpy(echo, "rm password.txt");
 	system(echo);
 
-	close(fd);
+	close(fdUser);
 }
 
 void receiveMessages(int puerto)
@@ -517,17 +527,16 @@ void receiveMessages(int puerto)
 		puerto: Puerto en el que se va a escuchar.
 	*/
 
-	int fd;
 	int numbytes;
 	char buffer[MAX_LARGO_MENSAJE];
 	struct sockaddr_in server;
 	struct sockaddr_in client;
 
-	if ((fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+	if ((fdReceive = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
 	{
 		cout << "\33[46m\33[31m[ERROR]:"
 			<< " ERROR: Imposible crear socket UDP.\33[00m\n";
-		exit(1);
+		fExit(1);
 	}
 
 	server.sin_family = AF_INET;
@@ -535,22 +544,23 @@ void receiveMessages(int puerto)
 	server.sin_addr.s_addr = INADDR_ANY;
 	bzero(&(server.sin_zero), 8);
 
-	if (bind(fd, (struct sockaddr*)&server, sizeof(struct sockaddr)) == -1)
+	if (bind(fdReceive, (struct sockaddr*)&server, sizeof(struct sockaddr)) == -1)
 	{
 		cout << "\33[46m\33[31m[ERROR]:"
 			<< " ERROR: Imposible hacer bind() para recepcion.\33[00m\n";
-		exit(1);
+		close(fdReceive);
+		fExit(1);
 	}
 
 	unsigned int sin_size = sizeof(struct sockaddr_in);
 
 	while (true)
 	{
-		if ((numbytes = recvfrom(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&client, &sin_size)) == -1)
+		if ((numbytes = recvfrom(fdReceive, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&client, &sin_size)) == -1)
 		{
 			cout << "\33[46m\33[31m[ERROR]:"
 				<< " ERROR: Imposible hacer recvfrom() para recepcion.\33[00m\n";
-			exit(1);
+			fExit(1);
 		}
 
 		buffer[numbytes - 2] = '\0';
@@ -558,7 +568,7 @@ void receiveMessages(int puerto)
 		if (checkFileInMessage(buffer))
 		{
 			printf("%s %s %s\n", getTiempo(), inet_ntoa(client.sin_addr), buffer);
-			receiveFile(fd, client, buffer);
+			receiveFile(fdReceive, client, buffer);
 		}
 		else
 		{
@@ -566,7 +576,7 @@ void receiveMessages(int puerto)
 		}
 	}
 
-	close(fd);
+	close(fdReceive);
 }
 
 void sendMessages(int puerto, char usuario[MAX_NOMBRE])
@@ -586,13 +596,12 @@ void sendMessages(int puerto, char usuario[MAX_NOMBRE])
 		usuario: Nombre de usuario que envía el mensaje.
 	*/
 
-	int fd;
+
 	int broadcast;
 
 	char mensaje[MAX_LARGO_MENSAJE];
 	char buffer[MAX_LARGO_MENSAJE];
 	char filePath[MAX_LARGO_MENSAJE];
-	string strfilePath;
 	FILE* redesFile;
 
 	struct hostent* he;
@@ -601,11 +610,11 @@ void sendMessages(int puerto, char usuario[MAX_NOMBRE])
 
 	while (true)
 	{
-		if ((fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+		if ((fdSend = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
 		{ // socket UDP
 			cout << "\33[46m\33[31m[ERROR]:"
 				<< " ERROR: Imposible abrir socket UDP para envio.\33[00m\n";
-			exit(1);
+			fExit(1);
 		}
 
 		unsigned int sin_size = sizeof(struct sockaddr_in);
@@ -622,11 +631,11 @@ void sendMessages(int puerto, char usuario[MAX_NOMBRE])
 			server.sin_addr.s_addr = INADDR_BROADCAST;
 			bzero(&(server.sin_zero), 8);
 
-			if (setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) == -1)
+			if (setsockopt(fdSend, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) == -1)
 			{
 				cout << "\33[46m\33[31m[ERROR]:"
 					<< " ERROR: Imposible hacer setsockopt() para envio.\33[00m\n";
-				exit(1);
+				fExit(1);
 			}
 		}
 		else
@@ -635,7 +644,7 @@ void sendMessages(int puerto, char usuario[MAX_NOMBRE])
 			{
 				cout << "\33[46m\33[31m[ERROR]:"
 					<< " gethostbyname()\33[00m\n";
-				exit(-1);
+				fExit(-1);
 			}
 
 			server.sin_family = AF_INET;
@@ -654,25 +663,23 @@ void sendMessages(int puerto, char usuario[MAX_NOMBRE])
 			strcat(buffer, mensaje);
 			strcat(buffer, "\0");
 
-			if (sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&server, sin_size) == -1)
+			if (sendto(fdSend, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&server, sin_size) == -1)
 			{
 				cout << "\33[46m\33[31m[ERROR]:"
 					<< " ERROR: sendto().\33[00m\n";
-				exit(1);
+				fExit(1);
 			}
-			strfilePath = '\0';
-			extractFilePath(&strfilePath, mensaje);
-			strcpy(filePath, strfilePath.c_str());
+			extractFilePath(filePath, mensaje);
 			redesFile = fopen(filePath, "rb");
 
 			if (redesFile == NULL)
 			{
 				cout << "\33[46m\33[31m[ERROR]:"
 					<< " ERROR: Imposible leer el archivo.\33[00m\n";
-				exit(-1);
+				fExit(-1);
 			}
 
-			sendFile(redesFile, fd, server);
+			sendFile(redesFile, fdSend, server);
 			fclose(redesFile);
 		}
 		else
@@ -683,16 +690,16 @@ void sendMessages(int puerto, char usuario[MAX_NOMBRE])
 			strcat(buffer, mensaje);
 			strcat(buffer, "\0");
 
-			if (sendto(fd, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&server, sin_size) == -1)
+			if (sendto(fdSend, buffer, MAX_LARGO_MENSAJE, 0, (struct sockaddr*)&server, sin_size) == -1)
 			{
 				cout << "\33[46m\33[31m[ERROR]:"
 					<< " ERROR: sendto().\33[00m\n";
-				exit(1);
+				fExit(1);
 			}
 		}
 	}
 
-	close(fd);
+	close(fdSend);
 }
 
 int main(int argc, char* argv[])
@@ -709,7 +716,7 @@ int main(int argc, char* argv[])
 	{
 		cout << "\33[46m\33[31m[ERROR]:"
 			<< " Faltan argumentos: port, ipAuth, portAuth.\33[00m\n";
-		exit(1);
+		fExit(1);
 	}
 
 	// Estructuras para el manejo de Senhales
@@ -756,7 +763,7 @@ int main(int argc, char* argv[])
 	{
 		cout << "\33[46m\33[31m[ERROR]:"
 			<< " Imposible Bifurcar.\33[00m\n";
-		exit(1);
+		fExit(1);
 	}
 
 	if (pid == 0)
